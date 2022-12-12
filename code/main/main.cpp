@@ -284,10 +284,9 @@ extern "C" void app_main(void)
                    Therefore we treat it still as successed! */
                    setSystemStatusFlag(SYSTEM_STATUS_CAM_FB_BAD);
             }
-            else {
-                esp_camera_fb_return(fb);   
-                Camera.LightOnOff(false);
-            }
+
+            esp_camera_fb_return(fb);   
+            Camera.LightOnOff(false);
         }
     }
 
