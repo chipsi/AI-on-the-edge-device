@@ -277,15 +277,19 @@ extern "C" void app_main(void)
             }
         } else { // Test Camera            
             camera_fb_t * fb = esp_camera_fb_get();
+            esp_camera_fb_return(fb);
+            fb = esp_camera_fb_get();
             if (!fb) {
-                LogFile.WriteToFile(ESP_LOG_WARN, TAG, "Camera Framebuffer init failed, retrying..");
+                LogFile.WriteToFile(ESP_LOG_WARN, TAG, "Fetching Camera Frame failed, retrying..");
                 /* Retry */
                 esp_camera_fb_return(fb);  
                 xDelay = 2000 / portTICK_PERIOD_MS;
                 vTaskDelay( xDelay ); 
                 camera_fb_t * fb = esp_camera_fb_get();
+                esp_camera_fb_return(fb);
+                fb = esp_camera_fb_get();
                 if (!fb) {
-                    LogFile.WriteToFile(ESP_LOG_ERROR, TAG, "Camera Framebuffer cannot be initialized!");
+                    LogFile.WriteToFile(ESP_LOG_ERROR, TAG, "Fetching Camera Frame failed!");
                     setSystemStatusFlag(SYSTEM_STATUS_CAM_FB_BAD);
                 }
             }
