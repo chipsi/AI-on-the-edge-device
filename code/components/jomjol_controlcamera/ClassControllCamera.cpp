@@ -263,8 +263,9 @@ void CCamera::EnableAutoExposure(int flashdauer)
         ESP_LOGE(TAG, "Camera Capture Failed");
         LEDOnOff(false);
         LightOnOff(false);
-        LogFile.WriteToFile(ESP_LOG_ERROR, TAG, "Capture Failed (Procedure 'EnableAutoExposure') --> Reboot! "
-                "Check that your camera module is working and connected properly.");
+        LogFile.WriteToFile(ESP_LOG_ERROR, TAG, "Capture Failed (Procedure 'EnableAutoExposure')! "
+                "Check that your camera module is working and connected properly!");
+        setSystemStatusFlag(SYSTEM_STATUS_CAM_FB_BAD);
         //doReboot();
     }
     esp_camera_fb_return(fb);        
@@ -314,9 +315,9 @@ esp_err_t CCamera::CaptureToBasisImage(CImageBasis *_Image, int delay)
         LEDOnOff(false);
         LightOnOff(false);
 
-        LogFile.WriteToFile(ESP_LOG_ERROR, TAG, "is not working anymore (CCamera::CaptureToBasisImage) - most probably caused by a hardware problem (instablility, ...). "
-                "System will reboot.");
-        doReboot();
+        LogFile.WriteToFile(ESP_LOG_ERROR, TAG, "is not working anymore (CCamera::CaptureToBasisImage) - most probably caused by a hardware problem (instablility, ...)!");
+        setSystemStatusFlag(SYSTEM_STATUS_CAM_FB_BAD);
+        //doReboot();
 
         return ESP_FAIL;
     }
@@ -410,8 +411,9 @@ esp_err_t CCamera::CaptureToFile(std::string nm, int delay)
         ESP_LOGE(TAG, "CaptureToFile: Camera Capture Failed");
         LEDOnOff(false);
         LightOnOff(false);
-        LogFile.WriteToFile(ESP_LOG_ERROR, TAG, "Capture Failed (CCamera::CaptureToFile) --> Reboot! "
+        LogFile.WriteToFile(ESP_LOG_ERROR, TAG, "Capture Failed (CCamera::CaptureToFile)! "
                 "Check that your camera module is working and connected properly.");
+        setSystemStatusFlag(SYSTEM_STATUS_CAM_FB_BAD);
         //doReboot();
 
         return ESP_FAIL;
@@ -507,6 +509,7 @@ esp_err_t CCamera::CaptureToHTTP(httpd_req_t *req, int delay)
         LEDOnOff(false);
         LightOnOff(false);
         httpd_resp_send_500(req);
+        setSystemStatusFlag(SYSTEM_STATUS_CAM_FB_BAD);
 //        doReboot();
 
         return ESP_FAIL;
