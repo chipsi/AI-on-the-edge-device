@@ -27,9 +27,6 @@
 #include "ClassControllCamera.h"
 #include "server_main.h"
 #include "server_camera.h"
-#ifdef ENABLE_MQTT
-    #include "server_mqtt.h"
-#endif //ENABLE_MQTT
 #include "Helper.h"
 
 extern const char* GIT_TAG;
@@ -37,8 +34,6 @@ extern const char* GIT_REV;
 extern const char* GIT_BRANCH;
 extern const char* BUILD_TIME;
 
-extern std::string getHTMLversion(void);
-extern std::string getHTMLcommit(void);
 
 #define __HIDE_PASSWORD
 
@@ -53,7 +48,7 @@ extern std::string getHTMLcommit(void);
 
 #define BLINK_GPIO GPIO_NUM_33
 
-static const char *TAG = "MAIN";
+static const char *TAG = "main";
 
 //#define FLASH_GPIO GPIO_NUM_4
 
@@ -116,9 +111,8 @@ bool Init_NVS_SDCard()
         }
         return false;
     }
-
     sdmmc_card_print_info(stdout, card);
-    SaveSDCardInfo(card);
+
     return true;
 }
 
@@ -130,7 +124,7 @@ void task_NoSDBlink(void *pvParameter)
     
     TickType_t xDelay;
     xDelay = 100 / portTICK_PERIOD_MS;
-    ESP_LOGD(TAG, "SD-Card could not be inialized - STOP THE PROGRAMM HERE");
+    printf("SD-Card could not be inialized - STOP THE PROGRAMM HERE\n");
 
     while (1)
     {
@@ -147,16 +141,20 @@ void task_NoSDBlink(void *pvParameter)
 extern "C" void app_main(void)
 {
     TickType_t xDelay;
-    bool initSucessful = true;
+    string versionFormated = "Branch: '" + std::string(GIT_BRANCH) + "', Tag: '" + std::string(GIT_TAG) + \
+            "', Revision: " + std::string(GIT_REV) +", Date/Time: " + std::string(BUILD_TIME);
 
-    ESP_LOGI(TAG, "\n\n\n\n\n"); // Add mark on log to see when it restarted
-    
+    printf("=============================================================================================\n");
+    printf("%s\n", versionFormated.c_str());
+    printf("=============================================================================================\n");
+
     PowerResetCamera();
-    esp_err_t camStatus = Camera.InitCam();
+    esp_err_t cam = Camera.InitCam();
     Camera.LightOnOff(false);
     xDelay = 2000 / portTICK_PERIOD_MS;
-    ESP_LOGD(TAG, "After camera initialization: sleep for: %ldms", (long) xDelay);
+    printf("After camera initialization: sleep for : %ldms\n", (long) xDelay);
     vTaskDelay( xDelay );   
+
 
     if (!Init_NVS_SDCard())
     {
@@ -164,144 +162,103 @@ extern "C" void app_main(void)
         return;
     };
 
-    string versionFormated = "Branch: '" + std::string(GIT_BRANCH) + \
-        "', Revision: " + std::string(GIT_REV) +", Date/Time: " + std::string(BUILD_TIME) + \
-        ", Web UI: " + getHTMLversion();
-
-    if (std::string(GIT_TAG) != "") { // We are on a tag, add it as prefix
-        string versionFormated = "Tag: '" + std::string(GIT_TAG) + "', " + versionFormated;
-    }
-
-    LogFile.CreateLogDirectories();
-
-    LogFile.WriteToFile(ESP_LOG_INFO, TAG, "=================================================");
-    LogFile.WriteToFile(ESP_LOG_INFO, TAG, "==================== Startup ====================");
-    LogFile.WriteToFile(ESP_LOG_INFO, TAG, "=================================================");
-    LogFile.WriteToFile(ESP_LOG_INFO, TAG, versionFormated);
-    LogFile.WriteToFile(ESP_LOG_INFO, TAG, "Reset reason: " + getResetReason());
-
     CheckOTAUpdate();
-    CheckUpdate();
 
     char *ssid = NULL, *passwd = NULL, *hostname = NULL, *ip = NULL, *gateway = NULL, *netmask = NULL, *dns = NULL;
     LoadWlanFromFile("/sdcard/wlan.ini", ssid, passwd, hostname, ip, gateway, netmask, dns);
 
     if (ssid != NULL && passwd != NULL)
 #ifdef __HIDE_PASSWORD
-        ESP_LOGD(TAG, "WLan: %s, XXXXXX", ssid);
+        printf("\nWLan: %s, XXXXXX\n", ssid);
 #else
-        ESP_LOGD(TAG, "WLan: %s, %s", ssid, passwd);
+        printf("\nWLan: %s, %s\n", ssid, passwd);
 #endif        
 
     else
-        ESP_LOGD(TAG, "No SSID and PASSWORD set!!!");
+        printf("No SSID and PASSWORD set!!!");
 
     if (hostname != NULL)
-        ESP_LOGD(TAG, "Hostname: %s", hostname);
+        printf("Hostename: %s\n", hostname);
     else
-        ESP_LOGD(TAG, "Hostname not set");
+        printf("Hostname not set.\n");
 
     if (ip != NULL && gateway != NULL && netmask != NULL)
-       ESP_LOGD(TAG, "Fixed IP: %s, Gateway %s, Netmask %s", ip, gateway, netmask);
+       printf("Fixed IP: %s, Gateway %s, Netmask %s\n", ip, gateway, netmask);
     if (dns != NULL)
-       ESP_LOGD(TAG, "DNS IP: %s", dns);
+       printf("DNS IP: %s\n", dns);
 
 
     wifi_init_sta(ssid, passwd, hostname, ip, gateway, netmask, dns);   
 
 
     xDelay = 2000 / portTICK_PERIOD_MS;
-    ESP_LOGD(TAG, "main: sleep for: %ldms", (long) xDelay);
+    printf("main: sleep for : %ldms\n", (long) xDelay);
     vTaskDelay( xDelay );   
-
-    if (!setup_time()) {
-        LogFile.WriteToFile(ESP_LOG_ERROR, TAG, "NTP Initialization failed!");
-    }
-
+    setup_time();
     setBootTime();
-
-    LogFile.WriteToFile(ESP_LOG_INFO, TAG, "=================================================");
-    LogFile.WriteToFile(ESP_LOG_INFO, TAG, "================== Main Started =================");
-    LogFile.WriteToFile(ESP_LOG_INFO, TAG, "=================================================");
-
-    if (getHTMLcommit().substr(0, 7) != std::string(GIT_REV).substr(0, 7)) { // Compare the first 7 characters of both hashes
-        LogFile.WriteToFile(ESP_LOG_WARN, TAG, std::string("Web UI version (") + getHTMLcommit() + ") does not match firmware version (" + std::string(GIT_REV) + ") !");
-    }
+    LogFile.WriteToFile(ESP_LOG_INFO, TAG, "=============================================================================================");
+    LogFile.WriteToFile(ESP_LOG_INFO, TAG, "=================================== Main Started ============================================");
+    LogFile.WriteToFile(ESP_LOG_INFO, TAG, "=============================================================================================");    
+    LogFile.WriteToFile(ESP_LOG_INFO, TAG, versionFormated);
+    //LogFile.SwitchOnOff(false);
 
     std::string zw = gettimestring("%Y%m%d-%H%M%S");
-    ESP_LOGD(TAG, "time %s", zw.c_str());
+    printf("time %s\n", zw.c_str());    
 
     size_t _hsize = getESPHeapSize();
-    if (_hsize < 4000000) // Check for a bit less than 4 MB (but clearly over 2 MB)
+    if (_hsize < 4000000)
     {
-        std::string _zws = "Not enough PSRAM available. Expected around 4 MBytes - available: " + std::to_string((float)_hsize/1024/1024) + " MBytes!";
-        _zws = _zws + "\nEither not initialized, too small (2 MByte only) or not present at all. Firmware cannot start!!";
-        LogFile.WriteToFile(ESP_LOG_ERROR, TAG, _zws);
-    } else { // Bad Camera Status, retry init   
-        if (camStatus != ESP_OK) {
-            LogFile.WriteToFile(ESP_LOG_WARN, TAG, "Failed to initialize camera module, retrying...");
+        std::string _zws = "Not enough PSRAM available. Expected 4.194.304 MByte - available: " + std::to_string(_hsize);
+        _zws = _zws + "\nEither not initialzed, too small (2MByte only) or not present at all. Firmware cannot start!!";
+        printf(_zws.c_str());
+        //LogFile.SwitchOnOff(true);
+        LogFile.WriteToFile(ESP_LOG_INFO, TAG, _zws);
+        //LogFile.SwitchOnOff(false);
+    } else {
+        if (cam != ESP_OK) {
+                ESP_LOGE(TAG, "Failed to initialize camera module. "
+                    "Check that your camera module is working and connected properly.");
 
-            PowerResetCamera();
-            esp_err_t camStatus = Camera.InitCam();
-            Camera.LightOnOff(false);
-            xDelay = 2000 / portTICK_PERIOD_MS;
-            ESP_LOGD(TAG, "After camera initialization: sleep for: %ldms", (long) xDelay);
-            vTaskDelay( xDelay ); 
-
-            if (camStatus != ESP_OK) {
-                LogFile.WriteToFile(ESP_LOG_ERROR, TAG, "Failed to initialize camera module!");
-                LogFile.WriteToFile(ESP_LOG_ERROR, TAG, "Check that your camera module is working and connected properly!");
-                initSucessful = false;
-            }
-        } else { // Test Camera            
+                //LogFile.SwitchOnOff(true);
+                LogFile.WriteToFile(ESP_LOG_INFO, TAG, "Failed to initialize camera module. "
+                        "Check that your camera module is working and connected properly.");
+                //LogFile.SwitchOnOff(false);
+        } else {
+// Test Camera            
             camera_fb_t * fb = esp_camera_fb_get();
             if (!fb) {
-                LogFile.WriteToFile(ESP_LOG_ERROR, TAG, "Camera Framebuffer cannot be initialized!");
-                /* Easiest would be to simply restart here and try again,
-                   how ever there seem to be systems where it fails at startup but still work corectly later.
-                   Therefore we treat it still as successed!
-                   //initSucessful = false; */
+                ESP_LOGE(TAG, "esp_camera_fb_get: Camera Capture Failed");
+                //LogFile.SwitchOnOff(true);
+                LogFile.WriteToFile(ESP_LOG_INFO, TAG, "Camera cannot be initialzed. "
+                        "System will reboot.");
+                doReboot();
             }
-            else {
-                esp_camera_fb_return(fb);   
-                Camera.LightOnOff(false);
-            }
+            esp_camera_fb_return(fb);   
+            Camera.LightOnOff(false);
         }
     }
 
 
 
     xDelay = 2000 / portTICK_PERIOD_MS;
-    ESP_LOGD(TAG, "main: sleep for: %ldms", (long) xDelay*10);
+    printf("main: sleep for : %ldms\n", (long) xDelay*10);
     vTaskDelay( xDelay ); 
 
-    ESP_LOGD(TAG, "starting servers");
+    printf("starting server\n");
 
     server = start_webserver();   
     register_server_camera_uri(server); 
     register_server_tflite_uri(server);
     register_server_file_uri(server, "/sdcard");
     register_server_ota_sdcard_uri(server);
-    #ifdef ENABLE_MQTT
-        register_server_mqtt_uri(server);
-    #endif //ENABLE_MQTT
 
     gpio_handler_create(server);
 
-    ESP_LOGD(TAG, "vor reg server main");
+    printf("vor reg server main\n");
     register_server_main_uri(server, "/sdcard");
 
-    if (initSucessful) {
-        LogFile.WriteToFile(ESP_LOG_INFO, TAG, "Initialization completed successfully!");
-        ESP_LOGD(TAG, "vor do autostart");
-        TFliteDoAutoStart();
-    }
-    else { // Initialization failed
-        LogFile.WriteToFile(ESP_LOG_ERROR, TAG, "Initialization failed. Will restart in 5 minutes!");
-        vTaskDelay(60*4000 / portTICK_RATE_MS); // Wait 4 minutes to give time to do an OTA or fetch the log
-        LogFile.WriteToFile(ESP_LOG_ERROR, TAG, "Initialization failed. Will restart in 1 minute!");
-        vTaskDelay(60*1000 / portTICK_RATE_MS); // Wait 1 minute to give time to do an OTA or fetch the log
-        LogFile.WriteToFile(ESP_LOG_ERROR, TAG, "Initialization failed. Will restart now!");
-        doReboot();
-    }
+    printf("vor dotautostart\n");
+    TFliteDoAutoStart();
+
 }
+
